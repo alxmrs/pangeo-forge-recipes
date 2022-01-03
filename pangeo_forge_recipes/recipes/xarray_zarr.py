@@ -372,11 +372,11 @@ def open_chunk(chunk_key: ChunkKey, *, config: XarrayZarrRecipe) -> xr.Dataset:
         yield ds
 
 
-def get_input_meta(metadata_cache: Optional[MetadataTarget], *input_keys: InputKey,) -> Dict:
+def get_input_meta(metadata_cache: Optional[MetadataTarget], file_pattern: FilePattern,) -> Dict:
     # getitems should be async; much faster than serial calls
     if metadata_cache is None:
         raise ValueError("metadata_cache is not set.")
-    return metadata_cache.getitems([_input_metadata_fname(k) for k in input_keys])
+    return metadata_cache.getitems([_input_metadata_fname(k) for k in file_pattern])
 
 
 def calculate_sequence_lens(
@@ -394,8 +394,7 @@ def calculate_sequence_lens(
 
     # read per-input metadata; this is distinct from global metadata
     # get the sequence length of every file
-    # this line could become problematic for large (> 10_000) lists of files
-    input_meta = get_input_meta(metadata_cache, *file_pattern)
+    input_meta = get_input_meta(metadata_cache, file_pattern)
     # use a numpy array to allow reshaping
     all_lens = np.array([m["dims"][concat_dim] for m in input_meta.values()])
     all_lens.shape = list(file_pattern.dims.values())
@@ -404,10 +403,10 @@ def calculate_sequence_lens(
         all_lens = np.expand_dims(all_lens, 1)
 
     # check that all lens are the same along the concat dim
-    unique_vec, unique_idx = np.unique(all_lens, axis=1, return_index=True)
+    unique_vec, unique_idx, unique_counts = np.unique(all_lens, axis=1, return_index=True, return_counts=True)
 
     if len(unique_idx) > 1:
-        correct_col = all_lens[:, unique_idx[0]]
+        correct_col = all_lens[:, unique_idx[np.argmax(unique_counts)]]
         err_idx = np.where(np.expand_dims(correct_col, 1) != all_lens)
         err_pos = list(zip(*err_idx[::-1]))
         raise ValueError(
