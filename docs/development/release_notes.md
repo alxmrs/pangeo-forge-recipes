@@ -1,8 +1,11 @@
 # Release Notes
 
-## v0.7.0 - unreleased
+## v0.7.0 - 2022-02-03
 
 - Apache Beam executor added. {issue}`169`. By [Alex Merose](https://github.com/alxmrs).
+- Dask executor updates. {pull}`260` {pull}`261`
+- Index type update. {pull}`257`
+- Fix incompatibility with `fsspec>=2021.11.1`. {pull}`247`
 
 ## v0.6.1 - 2021-10-25
 
