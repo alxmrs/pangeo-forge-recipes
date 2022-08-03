@@ -653,7 +653,9 @@ def finalize_target(*, config: XarrayZarrRecipe) -> None:
         # filter out the dims from the array metadata not in the Zarr group
         # to handle coordinateless dimensions.
         dims = set(_gather_coordinate_dimensions(group)) & set(group)
+        logger.info("Dimensions calculated.")
         for dim in dims:
+            logger.info(f"Processing {dim}")
             arr = group[dim]
             attrs = dict(arr.attrs)
             new = group.array(
