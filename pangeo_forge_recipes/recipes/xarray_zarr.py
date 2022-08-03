@@ -636,9 +636,11 @@ def store_chunk(chunk_key: ChunkKey, *, config: XarrayZarrRecipe) -> None:
 
 
 def _gather_coordinate_dimensions(group: zarr.Group) -> List[str]:
-    return list(
+    items = list(
         set(itertools.chain(*(group[var].attrs.get(_ARRAY_DIMENSIONS, []) for var in group)))
     )
+    logger.info(f"_gather_coordinate_dimensions items: {','.join(items)!r}")
+    return items
 
 
 def finalize_target(*, config: XarrayZarrRecipe) -> None:
