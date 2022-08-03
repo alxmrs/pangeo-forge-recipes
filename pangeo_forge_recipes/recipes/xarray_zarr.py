@@ -654,7 +654,7 @@ def finalize_target(*, config: XarrayZarrRecipe) -> None:
         # https://github.com/pangeo-forge/pangeo-forge-recipes/issues/214
         # filter out the dims from the array metadata not in the Zarr group
         # to handle coordinateless dimensions.
-        dims = (dim for dim in set(_gather_coordinate_dimensions(group)) if dim in group)
+        dims = set(_gather_coordinate_dimensions(group)) & set(group)
         for dim in dims:
             logger.info(f"Processing {dim}")
             arr = group[dim]
