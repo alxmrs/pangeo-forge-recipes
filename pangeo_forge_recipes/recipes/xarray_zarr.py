@@ -3,6 +3,7 @@ A Pangeo Forge Recipe
 """
 from __future__ import annotations
 
+import time
 import itertools
 import logging
 import os
@@ -40,6 +41,7 @@ OPENER_MAP = {
     FileType.netcdf3: dict(engine="scipy"),
     FileType.netcdf4: dict(engine="h5netcdf"),
 }
+SKIP_CONSOLIDATE_FLAG = 'dimension_consolidated'
 
 logger = logging.getLogger(__name__)
 
@@ -645,6 +647,20 @@ def _gather_coordinate_dimensions(group: zarr.Group) -> List[str]:
     )
 
 
+def _buffer_dim(dim: str) -> str:
+    """Create a consistent name for buffer Zarr arrays."""
+    return f'{dim}_{time.time_ns()}'
+
+
+def _cleanup_consolidated_dimension_coordinates(group: zarr.Group) -> None:
+    """Clean up any remaining buffer consolidated dimensions, in case the operation fails."""
+    for maybe_cleanup in group.keys():
+        if '_' in maybe_cleanup:
+            dim, maybe_time = maybe_cleanup.rsplit('_')
+            if dim in group and maybe_time.isdigit():
+                del group[maybe_cleanup]
+
+
 def finalize_target(*, config: XarrayZarrRecipe) -> None:
     if config.storage_config.target is None:
         raise ValueError("target has not been set.")
@@ -656,12 +672,21 @@ def finalize_target(*, config: XarrayZarrRecipe) -> None:
         # https://github.com/pangeo-forge/pangeo-forge-recipes/issues/214
         # filter out the dims from the array metadata not in the Zarr group
         # to handle coordinateless dimensions.
-        dims = (dim for dim in _gather_coordinate_dimensions(group) if dim in group)
+        dims = [dim for dim in _gather_coordinate_dimensions(group) if dim in group]
         for dim in dims:
             arr = group[dim]
             attrs = dict(arr.attrs)
+
+            # Check if this dimension was already consolidated...
+            if SKIP_CONSOLIDATE_FLAG in attrs:
+                continue
+            attrs[SKIP_CONSOLIDATE_FLAG] = True
+
+            # Create a temporary buffer with consolidated data. Once all data
+            # and metadata is written, overwrite the existing array.
+            tmp = _buffer_dim(dim)
             new = group.array(
-                dim,
+                tmp,
                 arr[:],
                 chunks=arr.shape,
                 dtype=arr.dtype,
@@ -669,9 +694,11 @@ def finalize_target(*, config: XarrayZarrRecipe) -> None:
                 fill_value=arr.fill_value,
                 order=arr.order,
                 filters=arr.filters,
-                overwrite=True,
             )
             new.attrs.update(attrs)
+            zarr.storage.rename(group.store, tmp, dim)
+
+        _cleanup_consolidated_dimension_coordinates(group)
 
     if config.consolidate_zarr:
         logger.info("Consolidating Zarr metadata")
