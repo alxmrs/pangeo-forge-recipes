@@ -1,0 +1,5 @@
+s3fs
+dask
+distributed
+bokeh>=2.1.1
+-e ..
